@@ -15,7 +15,10 @@ import (
 )
 
 // Set the API endpoint
-const apiEndpoint = "https://api.openai.com/v1/completions"
+const API_ENDPOINT = "https://api.openai.com/v1/completions"
+
+const YOU = "You: "
+const AI = "AI 🤖: "
 
 type completionRequest struct {
 	Model       string  `json:"model"`
@@ -78,39 +81,40 @@ func main() {
 	flag.BoolVar(&recursive, "r", false, "Ask the AI a question recursively")
 	flag.Parse()
 
-	// Check if the question is empty
-	if question == "" {
-		// Ask the user to input the question
-		scanner := bufio.NewScanner(os.Stdin)
-
-		// Ask the user to input the question
-		fmt.Printf("You:")
-
-		if scanner.Scan() {
-			question = scanner.Text()
-		}
-	}
-
 	if recursive {
 		// Ask the AI a question recursively
 		for {
+			// Ask the user to input the question
+			question = askUser()
+
 			if question == "" || question == "exit" {
 				fmt.Println("Bye!")
-				break
+				os.Exit(0)
 			}
 
 			answer := askAI(apiKey, question)
-			fmt.Println("AI: ", strings.TrimSpace(answer))
+			fmt.Println(AI, strings.TrimSpace(answer))
 			fmt.Println()
-
-			// Ask the user to input the question
-			fmt.Printf("You:")
-			scanner := bufio.NewScanner(os.Stdin)
-			if scanner.Scan() {
-				question = strings.TrimSpace(scanner.Text())
-			}
 		}
 	}
+
+	if question == "" {
+		question = askUser()
+	}
+
+	answer := askAI(apiKey, question)
+	fmt.Println(AI, strings.TrimSpace(answer))
+}
+
+func askUser() string {
+	// Ask the user to input the question
+	fmt.Print(YOU)
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		return strings.TrimSpace(scanner.Text())
+	}
+
+	return ""
 }
 
 func askAI(apiKey string, question string) string {
@@ -124,7 +128,7 @@ func askAI(apiKey string, question string) string {
 	jsonValue, _ := json.Marshal(requestBody)
 
 	// Set the HTTP request
-	req, err := http.NewRequest("POST", apiEndpoint, bytes.NewBuffer(jsonValue))
+	req, err := http.NewRequest("POST", API_ENDPOINT, bytes.NewBuffer(jsonValue))
 	if err != nil {
 		log.Fatal(err)
 	}
