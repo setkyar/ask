@@ -14,6 +14,9 @@ import (
 	"strings"
 )
 
+// Set the API endpoint
+const apiEndpoint = "https://api.openai.com/v1/completions"
+
 type completionRequest struct {
 	Model       string  `json:"model"`
 	Prompt      string  `json:"prompt"`
@@ -70,7 +73,9 @@ func main() {
 	}
 
 	var question string
+	var recursive bool
 	flag.StringVar(&question, "q", "", "The question to ask the AI")
+	flag.BoolVar(&recursive, "r", false, "Ask the AI a question recursively")
 	flag.Parse()
 
 	// Check if the question is empty
@@ -79,16 +84,36 @@ func main() {
 		scanner := bufio.NewScanner(os.Stdin)
 
 		// Ask the user to input the question
-		fmt.Println("Please enter the question:")
+		fmt.Printf("You:")
 
 		if scanner.Scan() {
 			question = scanner.Text()
 		}
 	}
 
-	// Set the API endpoint
-	apiEndpoint := "https://api.openai.com/v1/completions"
+	if recursive {
+		// Ask the AI a question recursively
+		for {
+			if question == "" || question == "exit" {
+				fmt.Println("Bye!")
+				break
+			}
 
+			answer := askAI(apiKey, question)
+			fmt.Println("AI: ", strings.TrimSpace(answer))
+			fmt.Println()
+
+			// Ask the user to input the question
+			fmt.Printf("You:")
+			scanner := bufio.NewScanner(os.Stdin)
+			if scanner.Scan() {
+				question = strings.TrimSpace(scanner.Text())
+			}
+		}
+	}
+}
+
+func askAI(apiKey string, question string) string {
 	// Set the request body
 	requestBody := completionRequest{
 		Model:       "text-davinci-003",
@@ -131,8 +156,9 @@ func main() {
 	// check the status code
 	if resp.StatusCode != 200 {
 		log.Fatal("Status code is not 200 and it's ", resp.StatusCode)
+		return ""
 	}
 
-	// Print the result
-	fmt.Println(response.Choices[0].Text)
+	// Return the response
+	return response.Choices[0].Text
 }
