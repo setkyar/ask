@@ -12,13 +12,31 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
-// Set the API endpoint
-const API_ENDPOINT = "https://api.openai.com/v1/completions"
-
+const API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 const YOU = "You: "
 const AI = "AI 🤖: "
+
+var messageHistory []Message
+
+type chatRequest struct {
+	Model    string    `json:"model"`
+	Messages []Message `json:"messages"`
+}
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type chatResponse struct {
+	Choices []struct {
+		Message Message `json:"message"`
+	} `json:"choices"`
+}
 
 type completionRequest struct {
 	Model       string  `json:"model"`
@@ -33,6 +51,12 @@ type completionResponse struct {
 	} `json:"choices"`
 }
 
+type Settings struct {
+	APIKey string `json:"api_key"`
+	Model  string `json:"model"`
+	Role   string `json:"role"`
+}
+
 func main() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -41,50 +65,22 @@ func main() {
 
 	filePath := filepath.Join(homeDir, ".openai")
 
-	// Check if the file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		// File does not exist, create it
-		file, err := os.Create(filePath)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer file.Close()
-	}
-
-	// File exists, read its contents
-	contents, err := os.ReadFile(filePath)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	apiKey := strings.TrimSpace(string(contents))
-
-	// Check if the API key is empty
-	if apiKey == "" {
-		// Ask the user to input the API key
-		fmt.Println("Please enter your OpenAI API key:")
-		fmt.Scanln(&apiKey)
-
-		// Write the API key to the file
-		err := os.WriteFile(filePath, []byte(apiKey), 0600)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
+	settings := loadSettings(filePath)
 
 	var question string
-	var recursive bool
+	var recursive, settingsOption bool
 	flag.StringVar(&question, "q", "", "The question to ask the AI")
 	flag.BoolVar(&recursive, "r", false, "Ask the AI a question recursively")
+	flag.BoolVar(&settingsOption, "s", false, "Modify the existing api-key and model")
 	flag.Parse()
 
+	if settingsOption {
+		settings = modifySettings(filePath)
+	}
+
 	if recursive {
-		// Ask the AI a question recursively
+		messageHistory = append(messageHistory, Message{Role: "system", Content: settings.Role})
 		for {
-			// Ask the user to input the question
 			question = askUser()
 
 			if question == "" || question == "exit" {
@@ -92,7 +88,23 @@ func main() {
 				os.Exit(0)
 			}
 
-			answer := askAI(apiKey, question)
+			if question == "clear" {
+				messageHistory = nil
+				fmt.Print("\033[H\033[2J") // clear screen
+				fmt.Println(AI, "Message history cleared.")
+				continue
+			}
+
+			if question == "role" {
+				fmt.Print("\033[H\033[2J") // clear screen
+				messageHistory = nil
+				fmt.Println(AI, "Please enter the role:")
+				fmt.Scanln(YOU, &question)
+				messageHistory = append(messageHistory, Message{Role: "system", Content: question})
+				continue
+			}
+
+			answer := askAI(settings.APIKey, settings.Model, question)
 			fmt.Println(AI, strings.TrimSpace(answer))
 			fmt.Println()
 		}
@@ -102,32 +114,92 @@ func main() {
 		question = askUser()
 	}
 
-	answer := askAI(apiKey, question)
+	answer := askAI(settings.APIKey, settings.Model, question)
 	fmt.Println(AI, strings.TrimSpace(answer))
 }
 
+func loadSettings(filePath string) Settings {
+	contents, err := os.ReadFile(filePath)
+	if err != nil {
+		return Settings{}
+	}
+
+	var settings Settings
+	json.Unmarshal(contents, &settings)
+
+	// check if the settings are valid
+	if settings.APIKey == "" || settings.Model == "" {
+		return modifySettings(filePath)
+	}
+
+	return settings
+}
+
+func modifySettings(filePath string) Settings {
+	var settings Settings
+
+	fmt.Println("Please enter your OpenAI API key:")
+	// Read the API key as hidden input
+	apiKeyBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		log.Fatal("Failed to read API key:", err)
+	}
+	settings.APIKey = string(apiKeyBytes)
+
+	validModels := map[string]bool{
+		"gpt-3.5-turbo": true,
+		"gpt-4.0-turbo": true,
+	}
+
+	for {
+		fmt.Println("Please choose either gpt-3.5-turbo or gpt-4.0-turbo.:")
+		fmt.Scanln(&settings.Model)
+
+		// Check if the entered model is valid
+		if validModels[settings.Model] {
+			break // Exit the loop if the model is valid
+		} else {
+			fmt.Println("Invalid model. Please choose either gpt-3.5-turbo or gpt-4.0-turbo.")
+		}
+	}
+
+	if settings.Role == "" {
+		fmt.Println("Please enter the role (Default is 'You are a helpful assistant'):")
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			settings.Role = scanner.Text()
+		}
+
+		if settings.Role == "" {
+			settings.Role = "You are a helpful assistant"
+		}
+	}
+
+	contents, _ := json.Marshal(settings)
+	os.WriteFile(filePath, contents, 0600)
+
+	return settings
+}
+
 func askUser() string {
-	// Ask the user to input the question
 	fmt.Print(YOU)
 	scanner := bufio.NewScanner(os.Stdin)
 	if scanner.Scan() {
 		return strings.TrimSpace(scanner.Text())
 	}
-
 	return ""
 }
 
-func askAI(apiKey string, question string) string {
-	// Set the request body
-	requestBody := completionRequest{
-		Model:       "text-davinci-003",
-		Prompt:      question,
-		MaxTokens:   1024,
-		Temperature: 0.5,
+func askAI(apiKey, model, question string) string {
+	messageHistory = append(messageHistory, Message{Role: "user", Content: question})
+
+	requestBody := chatRequest{
+		Model:    model,
+		Messages: messageHistory,
 	}
+
 	jsonValue, _ := json.Marshal(requestBody)
 
-	// Set the HTTP request
 	req, err := http.NewRequest("POST", API_ENDPOINT, bytes.NewBuffer(jsonValue))
 	if err != nil {
 		log.Fatal(err)
@@ -135,34 +207,31 @@ func askAI(apiKey string, question string) string {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
-	// Send the HTTP request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 
-	// Read the response body
 	body, err := io.ReadAll(resp.Body)
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Unmarshal the response
-	var response completionResponse
+	var response chatResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// check the status code
 	if resp.StatusCode != 200 {
 		log.Fatal("Status code is not 200 and it's ", resp.StatusCode)
 		return ""
 	}
 
-	// Return the response
-	return response.Choices[0].Text
+	messageHistory = append(messageHistory, Message{Role: "assistant", Content: response.Choices[0].Message.Content})
+
+	return response.Choices[0].Message.Content
 }
