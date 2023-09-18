@@ -121,7 +121,7 @@ func main() {
 func loadSettings(filePath string) Settings {
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
-		return Settings{}
+		return modifySettings(filePath)
 	}
 
 	var settings Settings
