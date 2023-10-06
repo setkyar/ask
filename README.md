@@ -1,20 +1,18 @@
 # ask
 
-OpenAI via cli. Make it easer to chat with OpenAI.
+**Ask** will make it easer to chat with OpenAI [GPT Model](https://platform.openai.com/docs/models) via your terminal.
 
 ## Installation
 
-Go to release page and put binary file under `/usr/local/bin` and you should be able to ask question by typing ask on your CLI. Initially, it will ask you fill up the [OpenAI API key](https://beta.openai.com/account/api-keys) which is store under `$HOME/.openai`.
+1. Go to [release page](https://github.com/setkyar/ask/releases).
+2. Download the binary file and made it executable
+3. Move binary file `ask` to `/usr/local/bin/ask`
+4. Start accessing `ask` via cli.
+5. Get your OpenAI API key via [OpenAI](https://platform.openai.com/account/api-keys) and submit it to `ask`
 
-### Example installation for Mac
-```
-wget https://github.com/setkyar/ask/releases/download/v1.0.0/ask-darwin-amd64-1.0.0
-chmod +x ask-darwin-amd64-1.0.0
-sudo mv ask-darwin-amd64-1.0.0 /usr/local/bin/ask
 
-rm ask-darwin-amd64-1.0.0
-```
+Your API key and configuration will be store at `$HOME/.openai`.
 
-After that you should be able to type and `ask` via cli. For inital, you will need to register and get [OpenAI (API Key)](https://beta.openai.com/account/api-keys).
+### Usage and example
 
-<img width="612" alt="image" src="https://user-images.githubusercontent.com/4435358/210245930-74dc788b-4d39-4c26-a27c-db30b8724c5e.png">
+You can check usage and example inside [my linked in post](https://www.linkedin.com/feed/update/urn:li:activity:7109578122571771905/) that explain in video.
