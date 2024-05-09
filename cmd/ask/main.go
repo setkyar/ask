@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -23,8 +24,9 @@ const AI = "AI 🤖: "
 var messageHistory []Message
 
 type chatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
+	Model       string    `json:"model"`
+	Temperature float32   `json:"temperature"`
+	Messages    []Message `json:"messages"`
 }
 
 type Message struct {
@@ -52,9 +54,10 @@ type completionResponse struct {
 }
 
 type Settings struct {
-	APIKey string `json:"api_key"`
-	Model  string `json:"model"`
-	Role   string `json:"role"`
+	APIKey      string  `json:"api_key"`
+	Model       string  `json:"model"`
+	Temperature float32 `json:"temperature"`
+	Role        string  `json:"role"`
 }
 
 func main() {
@@ -175,6 +178,26 @@ func modifySettings(filePath string) Settings {
 		}
 	}
 
+	if settings.Temperature == 0 {
+		fmt.Println("Please enter the temperature (Default is 0.7):")
+
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			input := scanner.Text()
+			temp, err := strconv.ParseFloat(input, 32)
+
+			if err == nil && temp > 0 && temp <= 1 {
+				settings.Temperature = float32(temp)
+			} else {
+				settings.Temperature = 0.7
+			}
+		}
+
+		if settings.Temperature == 0 {
+			settings.Temperature = 0.7
+		}
+	}
+
 	contents, _ := json.Marshal(settings)
 	os.WriteFile(filePath, contents, 0600)
 
@@ -194,8 +217,9 @@ func askAI(apiKey, model, question string) string {
 	messageHistory = append(messageHistory, Message{Role: "user", Content: question})
 
 	requestBody := chatRequest{
-		Model:    model,
-		Messages: messageHistory,
+		Model:       model,
+		Temperature: 0.7,
+		Messages:    messageHistory,
 	}
 
 	jsonValue, _ := json.Marshal(requestBody)
