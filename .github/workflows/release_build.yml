@@ -3,7 +3,7 @@ name: Release Go project
 on:
   push:
     tags:
-      - "*" # triggers only if push new tag version, like `0.0.1` or else
+    - "*" # triggers only if push new tag version, like `0.0.1` or else
 
 jobs:
   build:
@@ -11,22 +11,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0 # See: https://goreleaser.com/ci/actions/
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 # See: https://goreleaser.com/ci/actions/
 
-      - name: Set up Go 1.19
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.19
-        id: go
+    - name: Set up Go 1.19
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.19
+      id: go
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@master
-        with:
-          version: latest
-          args: release --clean
-          workdir: ./cmd/ask
-        env:
-          GITHUB_TOKEN: ${{ secrets.GO_RELEASER_GITHUB_TOKEN }}
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@master
+      with:
+        version: latest
+        args: release --clean
+        workdir: .
+      env:
+        GITHUB_TOKEN: ${{ secrets.GO_RELEASER_GITHUB_TOKEN }}
